@@ -11,7 +11,7 @@ Esta carpeta es esa parte.
 | [2. Diseño de casos](02-diseno-de-casos.md) | Los 17 escenarios, las cuatro técnicas, y la pareja de casos que responde igual y significa lo contrario |
 | [3. Matriz de trazabilidad](03-matriz-trazabilidad.md) | 31 reglas de negocio, 26 con caso — y las **5 que no tienen ninguno**, con su motivo |
 | [4. Análisis de riesgos](04-analisis-riesgos.md) | Cinco riesgos. El primero es que la suite se vuelva intermitente |
-| [5. Hallazgos](05-hallazgos.md) | **Cuatro.** Uno lo puse yo. Tres no |
+| [5. Hallazgos](05-hallazgos.md) | **Cinco.** Uno lo puse yo. Cuatro no, y al último lo encontró este CI |
 
 ---
 
@@ -79,6 +79,13 @@ que detectó exactamente lo que tenía que detectar.** Y el diagnóstico obvio a
 Está corregido sumando las dos columnas, y con una comprobación de más: que el escenario en
 rojo **sea IN-03** y no otro que dé la casualidad de fallar. Un control que no distingue un
 acierto de una casualidad no es un control.
+
+Y ese recuento encontró un defecto mío en el primer `push`. `FL-01` llevaba dos cifras
+absolutas —`vendido == 2`— en una suite donde todo lo demás son deltas: en mi equipo pasaba
+porque esa clase corría primero, y en el runner de GitHub el orden fue otro. El trabajo contó
+**dos** rojos donde esperaba uno y se negó. Un CI conformado con «la suite falla, que es lo
+que queríamos» habría pasado en verde con la suite rota por dentro
+([H-04](05-hallazgos.md#h-04)).
 
 ## Y cinco reglas que no tienen caso
 

@@ -121,5 +121,15 @@ jobs:
           done
           curl -s http://localhost:8095/salud | grep -q '"corregida":true'
 
-      - name: Correr la suite esperando que pase entera
-        run: mvn -B test -Dapi.url=http://localhost:8095
+      # Y en orden invertido, a propósito.
+      #
+      # El primer push de este repositorio falló porque FL-01 llevaba dos
+      # cifras absolutas en una suite donde todo lo demás son deltas: en el
+      # equipo donde se escribió corría primero y pasaba; en el runner, el
+      # orden fue otro. Ver docs/05-hallazgos.md#h-04.
+      #
+      # El trabajo de arriba corre en el orden por defecto, así que entre los
+      # dos quedan cubiertos los dos órdenes. No se usa `random`: un fallo que
+      # no se puede reproducir se relanza hasta que pase.
+      - name: Correr la suite esperando que pase entera, en orden invertido
+        run: mvn -B test -Dapi.url=http://localhost:8095 -Dsurefire.runOrder=reversealphabetical

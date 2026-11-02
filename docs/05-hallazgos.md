@@ -1,12 +1,13 @@
 # 5. Hallazgos
 
-**Uno lo puse yo. Tres no.**
+**Uno lo puse yo. Cuatro no.**
 
 El primero es el defecto que la API de ejemplo trae de serie para demostrar que la suite
 sirve: se apaga con `API_CORREGIDA=1`, y el CI exige que la suite lo detecte.
 
-Los tres siguientes aparecieron montando esto. Dos de ellos habrían dejado el CI diciendo
-exactamente lo contrario de lo que pasaba.
+Los cuatro siguientes aparecieron montando esto. Dos de ellos habrían dejado el CI diciendo
+exactamente lo contrario de lo que pasaba, y **al último lo encontró el propio CI** en el
+primer `push`.
 
 | Id | Resumen | Severidad | Origen |
 | --- | --- | :-: | :-: |
@@ -14,6 +15,7 @@ exactamente lo contrario de lo que pasaba.
 | [H-01](#h-01) | Los 17 escenarios fallaron a la vez por una dependencia que no estaba | Media | mío |
 | [H-02](#h-02) | El CI habría dicho «la suite no detecta nada» justo cuando sí | **Alta** | mío |
 | [H-03](#h-03) | Tres pruebas se pisaban el inventario según el orden | Media | mío |
+| [H-04](#h-04) | La única aserción absoluta de la suite, encontrada por el CI | **Alta** | mío |
 
 ---
 
@@ -230,11 +232,72 @@ private static void conElEventoEntero() {
 que alguien añada un caso en medio vuelve el mismo fallo intermitente y ya nadie recuerda por
 qué estaba el orden.
 
+## H-04
+
+**La única aserción absoluta de la suite, y la encontró el CI**
+
+| | |
+| --- | --- |
+| **Cómo se vio** | El primer `push`. En local pasaba; en GitHub, no |
+| **Severidad** | Alta |
+
+`FL-01` comprobaba el aforo después de pagar así:
+
+```java
+.body("bloqueado", equalTo(0))
+.body("vendido", equalTo(2))
+```
+
+**Dos cifras absolutas en una suite donde todo lo demás son deltas.** `vendido == 2` solo es
+cierto si nadie ha vendido nada antes, y el aforo es estado compartido: en cuanto otra clase
+de prueba paga una butaca, ese 2 es un 3.
+
+En mi equipo pasaba porque `FlujoCompletoTest` corría primero. En el runner de GitHub el
+orden fue otro —surefire resuelve el orden por sistema de archivos, y Linux no lo ordena
+como Windows— y la prueba se encontró butacas ya vendidas:
+
+```
+[ERROR] FlujoCompletoTest.elFlujoCompletoConsumeLasButacasUnaVez:54 1 expectation failed.
+[ERROR] Tests run: 17, Failures: 1, Errors: 1
+Escenarios en rojo: 2  (Failures: 1, Errors: 1)
+```
+
+Es exactamente el riesgo [R-01](04-analisis-riesgos.md) de este repositorio, escrito por mí
+dos documentos más arriba, incumplido en una línea.
+
+**Lo que más me interesa de este hallazgo es quién lo encontró.** El trabajo `detecta-la-fuga`
+esperaba **un** escenario en rojo, contó **dos**, y se negó:
+
+```
+::error::Se esperaba 1 escenario en rojo y hubo 2. Mira docs/05-hallazgos.md.
+```
+
+Un CI que se hubiera conformado con «la suite falla, que es lo que queríamos» habría pasado
+el trabajo en verde con la suite rota por dentro. El rojo correcto estaba ahí —IN-03 seguía
+detectando la fuga— acompañado de un rojo que no era de nadie, y **el recuento es lo único
+que distingue las dos cosas**.
+
+**Corregido** comparando el aforo entero contra su punto de partida, con un `record` para
+no leerlo tres veces:
+
+```java
+Aforo antes = aforoDe(EVENTO_GRANDE);
+// …
+Aforo trasPagar = aforoDe(EVENTO_GRANDE);
+assertEquals(antes.bloqueado(), trasPagar.bloqueado(), "el bloqueo se suelta");
+assertEquals(antes.vendido() + 2, trasPagar.vendido(), "y pasa a venta");
+assertEquals(antes.disponible() - 2, trasPagar.disponible());
+```
+
+Y **no** fijando el orden de ejecución de surefire, que era el arreglo de una línea. Es el
+mismo argumento de [H-03](#h-03): ordenar las pruebas esconde el acoplamiento en vez de
+quitarlo, y el día que alguien añada una clase vuelve el mismo fallo en otro sitio.
+
 ---
 
 ## Lo que se lleva de aquí
 
-Dos de los tres hallazgos propios **no producían un rojo**: producían o un rojo mal
+Tres de los cuatro hallazgos propios **no producían un rojo**: producían o un rojo mal
 atribuido, o un verde que iba a romperse más adelante en la máquina de otro.
 
 | Lo que habría dicho el informe | Lo que pasaba de verdad |
@@ -242,6 +305,7 @@ atribuido, o un verde que iba a romperse más adelante en la máquina de otro.
 | «La suite no detecta nada» ([H-02](#h-02)) | La suite detectaba exactamente lo que debía |
 | 17 de 17 en rojo, parece la API caída ([H-01](#h-01)) | Faltaba una línea del `pom.xml` |
 | Verde ([H-03](#h-03)) | Verde **de momento**, y en orden alfabético |
+| Verde en mi equipo ([H-04](#h-04)) | Rojo en el CI, por el orden de ejecución |
 
 Y el que sí era de la API —[F-01](#f-01)— no se veía en ninguna respuesta. Las tres del
 flujo estaban bien: un 201, un 500 legítimo y un aforo que respondía 200 con un número

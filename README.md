@@ -114,7 +114,7 @@ funciona en el equipo de quien la escribe y falla en el de todos los demás.
 | [Diseño de casos](docs/02-diseno-de-casos.md) | Los 17 escenarios y las cuatro técnicas |
 | [Matriz de trazabilidad](docs/03-matriz-trazabilidad.md) | 31 reglas, 26 con caso — y las **5 sin ninguno**, con su motivo |
 | [Análisis de riesgos](docs/04-analisis-riesgos.md) | Cinco riesgos. El primero es que la suite se vuelva intermitente |
-| [Hallazgos](docs/05-hallazgos.md) | **Cuatro.** Uno lo puse yo. Tres no |
+| [Hallazgos](docs/05-hallazgos.md) | **Cinco.** Uno lo puse yo. Cuatro no, y al último lo encontró este CI |
 
 ### El hallazgo que más me interesa no está en la API
 
@@ -131,6 +131,18 @@ aserción está mal, la reescribo»— es cómo se desmonta un control que funci
 Está corregido sumando las dos columnas, y con una comprobación de más: que el escenario en
 rojo **sea IN-03**. Un control que no distingue un acierto de una casualidad no es un
 control.
+
+Y ese recuento se ganó el sueldo en el primer `push`: `FL-01` llevaba dos cifras absolutas
+—`vendido == 2`— en una suite donde todo lo demás son deltas. En mi equipo pasaba porque esa
+clase corría primero; en el runner de GitHub el orden fue otro. El trabajo contó **dos** rojos
+donde esperaba uno y se negó:
+
+```
+::error::Se esperaba 1 escenario en rojo y hubo 2.
+```
+
+Un CI que se hubiera conformado con «la suite falla, que es lo que queríamos» habría pasado en
+verde con la suite rota por dentro. Está en [H-04](docs/05-hallazgos.md#h-04).
 
 ## El CI, y por qué tiene dos trabajos
 

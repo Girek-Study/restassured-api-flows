@@ -84,6 +84,34 @@ abstract class BaseDeFlujo {
         .path("disponible");
   }
 
+  /**
+   * El aforo de un evento, con sus tres números.
+   *
+   * <p>Existe para que ninguna comprobación tenga que escribir una cifra
+   * absoluta. {@code vendido == 2} parece inofensivo y es falso en cuanto otro
+   * escenario haya vendido algo antes: el aforo es estado compartido y el
+   * orden entre clases de prueba no está garantizado. Con el aforo de antes
+   * en la mano, lo que se afirma es el movimiento, y eso no depende de quién
+   * haya corrido primero.
+   */
+  protected record Aforo(int total, int bloqueado, int vendido, int disponible) {}
+
+  protected static Aforo aforoDe(String evento) {
+    var cuerpo =
+        given()
+            .when()
+            .get("/eventos/{evento}/aforo", evento)
+            .then()
+            .statusCode(200)
+            .extract()
+            .jsonPath();
+    return new Aforo(
+        cuerpo.getInt("total"),
+        cuerpo.getInt("bloqueado"),
+        cuerpo.getInt("vendido"),
+        cuerpo.getInt("disponible"));
+  }
+
   /** Crea una reserva bloqueada y devuelve su id. El paso 1 del flujo, sin ceremonia. */
   protected static String reservar(String token, String evento, int butacas, String asistente) {
     return como(token)

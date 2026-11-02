@@ -10,7 +10,7 @@ Cinco riesgos, dos de ellos abiertos.
 
 ## R-01 · Los escenarios comparten el aforo y se pisan
 
-**Severidad: alta. Mitigado, y pasó de verdad.**
+**Severidad: alta. Mitigado, y pasó dos veces.**
 
 Todos los escenarios de esta suite tocan el mismo inventario. Si dos corren a la vez sobre el
 mismo evento, se restan butacas entre ellos y **el fallo aparece en el escenario
@@ -47,6 +47,12 @@ private static void conElEventoEntero() {
 La salida cómoda habría sido `@Order`. **Ordenar las pruebas esconde el acoplamiento;
 esperar lo resuelve**, y además deja la suite lista para el día que alguien añada un caso en
 medio.
+
+**Y aun con las tres puestas, se me coló una.** `FL-01` comprobaba `vendido == 2`: dos cifras
+absolutas en una suite donde todo lo demás son deltas. En mi equipo pasaba porque esa clase
+corría primero; en el runner de GitHub el orden fue otro y se encontró butacas ya vendidas.
+Lo encontró el propio CI, en el primer `push`, al contar dos rojos donde esperaba uno. Está
+en [H-04](05-hallazgos.md#h-04).
 
 ## R-02 · Una espera mal hecha convierte la suite en una tirada de dados
 
