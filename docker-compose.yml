@@ -1,0 +1,56 @@
+# ============================================================================
+#  Para correr la suite sin instalar nada en el equipo.
+#
+#    docker compose run --rm pruebas                      # API sin compensar
+#    API_CORREGIDA=1 docker compose run --rm pruebas      # API corregida
+#
+#  La primera tiene que FALLAR, y por un solo escenario: IN-03, el que mide el
+#  aforo después de un pago que revienta. La segunda tiene que pasar entera.
+#
+#  El servicio `api` se levanta solo, porque `pruebas` depende de que su sonda
+#  de salud responda.
+# ============================================================================
+
+services:
+  api:
+    image: node:22-alpine
+    container_name: reservas-api
+    working_dir: /app
+    volumes:
+      - ./demo:/app:ro
+    environment:
+      PUERTO: 8095
+      # Vacío = la API pierde aforo cuando el pago falla. Con 1, compensa.
+      API_CORREGIDA: ${API_CORREGIDA:-}
+      # Tres segundos. Una prueba de caducidad que tarda quince minutos no se
+      # ejecuta nunca, y una suite que no se ejecuta no informa de nada.
+      SEGUNDOS_DE_BLOQUEO: 3
+    command: node servidor.js
+    healthcheck:
+      # Sin esto Maven arranca antes que el servidor y los primeros escenarios
+      # fallan con «connection refused», que no es el fallo que interesa.
+      test: ['CMD', 'wget', '-q', '-O-', 'http://localhost:8095/salud']
+      interval: 2s
+      timeout: 3s
+      retries: 10
+      start_period: 2s
+
+  pruebas:
+    image: maven:3.9-eclipse-temurin-17
+    container_name: reservas-pruebas
+    working_dir: /proyecto
+    volumes:
+      - .:/proyecto
+      # El caché de Maven en un volumen con nombre: sin él, cada corrida
+      # vuelve a descargar RestAssured entero y tarda minutos en vez de
+      # segundos.
+      - cache-maven:/root/.m2
+    depends_on:
+      api:
+        condition: service_healthy
+    # `api` es el nombre del servicio y también su nombre de host dentro de la
+    # red del compose. No hace falta publicar ningún puerto al equipo.
+    command: mvn -B test -Dapi.url=http://api:8095
+
+volumes:
+  cache-maven:

@@ -1,0 +1,10 @@
+{
+  "name": "restassured-api-flows",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pruebas de flujos de negocio con RestAssured sobre una API que pierde aforo cuando un paso falla.",
+  "scripts": {
+    "api": "node demo/servidor.js",
+    "api:corregida": "node -e \"process.env.API_CORREGIDA='1';require('./demo/servidor.js')\""
+  }
+}

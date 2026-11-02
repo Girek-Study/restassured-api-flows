@@ -1,0 +1,125 @@
+# ============================================================================
+#  Dos trabajos, y los dos tienen que pasar.
+#
+#  `detecta-la-fuga` — levanta la API sin compensación y exige que la suite
+#                      FALLE, con EXACTAMENTE un escenario en rojo: IN-03, el
+#                      que mide el aforo después de un pago que revienta.
+#  `no-miente`       — levanta la API con compensación y exige que la suite
+#                      pase entera. Si fallara, las aserciones estarían
+#                      inventando defectos.
+#
+#  Casi todas las suites verifican solo lo segundo. Una suite que nunca ha
+#  visto un rojo que le corresponde no ha demostrado que sirva para algo.
+#
+#  Y no vale con exigir rojo: hay que contar. Si mañana el fallo es otro, o
+#  son dos, este trabajo se pone rojo también, y por el motivo correcto.
+# ============================================================================
+
+name: flujos
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  detecta-la-fuga:
+    name: Detecta el aforo que se pierde
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Levantar la API sin compensación
+        env:
+          SEGUNDOS_DE_BLOQUEO: '3'
+        run: |
+          node demo/servidor.js &
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:8095/salud && break
+            sleep 1
+          done
+          # Que la sonda confirme el modo: un `corregida: true` aquí haría que
+          # este trabajo fallara por el motivo del otro.
+          curl -s http://localhost:8095/salud | grep -q '"corregida":false'
+
+      - name: Correr la suite esperando que falle
+        run: |
+          set +e
+          mvn -B test -Dapi.url=http://localhost:8095 > corrida.log 2>&1
+          CODIGO=$?
+          set -e
+          cat corrida.log
+
+          if [ "$CODIGO" -eq 0 ]; then
+            echo "::error::La suite pasó contra una API que pierde aforo cuando falla el pago."
+            exit 1
+          fi
+
+          # Failures Y Errors. La aserción de IN-03 va dentro de un
+          # `untilAsserted` de Awaitility, así que cuando no se cumple llega
+          # como ConditionTimeoutException y surefire la cuenta en Errors, no
+          # en Failures. Mirar solo una de las dos columnas daría cero aquí, y
+          # este trabajo se pondría rojo diciendo que la suite no detecta nada
+          # justo cuando sí lo hace.
+          RESUMEN=$(grep -oE 'Tests run: [0-9]+, Failures: [0-9]+, Errors: [0-9]+' corrida.log | tail -1)
+          F=$(echo "$RESUMEN" | grep -oE 'Failures: [0-9]+' | grep -oE '[0-9]+')
+          E=$(echo "$RESUMEN" | grep -oE 'Errors: [0-9]+' | grep -oE '[0-9]+')
+          FALLOS=$((F + E))
+          echo "Escenarios en rojo: $FALLOS  (Failures: $F, Errors: $E)"
+
+          if [ "$FALLOS" != "1" ]; then
+            echo "::error::Se esperaba 1 escenario en rojo y hubo $FALLOS. Mira docs/05-hallazgos.md."
+            exit 1
+          fi
+
+          # Y que sea EL escenario, no otro cualquiera que dé la casualidad de
+          # fallar. Un rojo en el sitio equivocado también es una suite rota.
+          if ! grep -q 'siElPagoFallaElAforoVuelve' corrida.log; then
+            echo "::error::Falló un escenario, pero no es IN-03. La suite está detectando otra cosa."
+            exit 1
+          fi
+
+          echo "La suite detectó la fuga de aforo, y solo esa."
+
+  no-miente:
+    name: No inventa fallos con la API corregida
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+
+      - name: Levantar la API con compensación
+        env:
+          API_CORREGIDA: '1'
+          SEGUNDOS_DE_BLOQUEO: '3'
+        run: |
+          node demo/servidor.js &
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:8095/salud && break
+            sleep 1
+          done
+          curl -s http://localhost:8095/salud | grep -q '"corregida":true'
+
+      - name: Correr la suite esperando que pase entera
+        run: mvn -B test -Dapi.url=http://localhost:8095

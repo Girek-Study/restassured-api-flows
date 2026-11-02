@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>study.girek</groupId>
+  <artifactId>restassured-api-flows</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+
+  <name>restassured-api-flows</name>
+  <description>Pruebas de flujos de negocio con RestAssured sobre una API que pierde aforo cuando un paso falla</description>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>17</maven.compiler.release>
+
+    <restassured.version>5.5.2</restassured.version>
+    <junit.version>5.12.2</junit.version>
+    <awaitility.version>4.3.0</awaitility.version>
+    <jackson.version>2.18.4</jackson.version>
+
+    <!-- Dónde escucha la API de ejemplo. Lo pisa el compose con el nombre del
+         servicio, y el CI con localhost. El 8095 y no el 8080: el 8080 es el
+         puerto más ocupado de cualquier equipo de desarrollo. -->
+    <api.url>http://localhost:8095</api.url>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>io.rest-assured</groupId>
+      <artifactId>rest-assured</artifactId>
+      <version>${restassured.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- RestAssured trae con qué LEER json —json-path— pero no con qué
+         ESCRIBIRLO. En cuanto una petición manda un objeto como cuerpo, hace
+         falta un serializador en el classpath o revienta en ejecución con
+         «Cannot serialize object because no JSON serializer found».
+
+         No avisa al compilar. Los 17 escenarios de este repositorio fallaron
+         a la vez la primera corrida, todos en la línea que abre sesión, y el
+         mensaje no dice que falte una dependencia del pom: dice que falte
+         Jackson «en el classpath», que suena a problema de ejecución.
+
+         json-path y xml-path sí vienen con rest-assured. Declararlos aparte
+         con otra versión es la forma más rápida de acabar con dos Groovy
+         distintos en el classpath. -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- Para esperar a que caduque un bloqueo sin escribir Thread.sleep.
+         Un sleep fijo es lento cuando acierta y falso cuando no: si la
+         máquina va justa, el sleep termina antes que el evento y la prueba
+         falla por el reloj. Awaitility sondea hasta que la condición se
+         cumple o se acaba el plazo. -->
+    <dependency>
+      <groupId>org.awaitility</groupId>
+      <artifactId>awaitility</artifactId>
+      <version>${awaitility.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.5.2</version>
+        <configuration>
+          <systemPropertyVariables>
+            <api.url>${api.url}</api.url>
+          </systemPropertyVariables>
+
+          <!-- Secuencial a propósito. Los escenarios comparan el aforo de
+               antes con el de después, y el aforo es estado compartido de un
+               evento: dos pruebas a la vez sobre el mismo evento se restan
+               butacas entre ellas y el fallo aparece en la prueba equivocada.
+               Lo que se ahorraría paralelizando son segundos; lo que costaría
+               es una suite que falla a veces, y una suite que falla a veces se
+               relanza hasta que pase. -->
+          <parallel>none</parallel>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
+</project>
